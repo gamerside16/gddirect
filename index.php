@@ -2,8 +2,8 @@
 
 if (isset($_GET['id'])) {
 	gdrive($_GET['id']);
-} else if (isset($_GET['a'])) {
-	$url = $_GET['a'];
+} else if (isset($_GET['c'])) {
+	$url = $_GET['c'];
 	$index = 0;
 	if (isset($_GET['i']))
 		$index = $_GET['i'];
@@ -11,6 +11,7 @@ if (isset($_GET['id'])) {
 	if (isset($_GET['id'])) {
 		gdrive($_GET['id']);
 	} else {
+		$url = drc($url);
 		get($url, $index);
 	}
 } else {
@@ -86,5 +87,12 @@ function gdrive($id) {
 		http_response_code(403);
 		die('Forbidden');
 	}
+}
+function drc($code) {
+	$start = "aHR0cA";
+	$code = substr($code, 3, -3);
+	$code = substr($code, 0, 3) . substr($code, 6);
+	$code = base64_decode($start . "==") . base64_decode($code);
+	return $code;
 }
 ?>
