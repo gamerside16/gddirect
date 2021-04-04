@@ -11,12 +11,14 @@ function cache_path(string $id) : string {
 	if (!file_exists('_cache')) {
 		mkdir('_cache', 0777);
 	}
+	
+	return '_cache/' . $id;
 
-	if (strlen($id) == 33) {
+	/*if (strlen($id) == 33) {
 		return '_cache/' . hash('sha256',$id, false);
 	} else {
 		return '_cache/' . $id;
-	}
+	}*/
 }
 
 function read_data(string $id) {
@@ -138,16 +140,18 @@ function write_data(string $id) {
 			$thumbnail = '';
 		}
 		
-		// Write to file
-		fwrite($fhandle, json_encode(array(
+		$json = json_encode(array(
 			'thumbnail' => $thumbnail,
 			'cookies' => $cookies,
 			'sources' => $sources_list,
 			'id' => $id,
-		)));
+		));
+		
+		// Write to file
+		fwrite($fhandle, $json);
 		fclose($fhandle);
 
-		if (in_array('1080p', $ar_list)) {
+		/*if (in_array('1080p', $ar_list)) {
 			$stream = '1080p';
 		} else if (in_array('720p', $ar_list)) {
 			$stream = '720p';
@@ -155,13 +159,15 @@ function write_data(string $id) {
 			$stream = '480p';
 		} else {
 			$stream = '360p';
-		}
+		}*/
 		
-		header('location: ?id='.hash('sha256', $id, false).'&stream='.$stream);
+		//header('location: ?id='.hash('sha256', $id, false).'&stream='.$stream);
 		// return array(
 		// 	'hash' => hash('sha256', $id, false),
 		// 	'sources' => $ar_list
 		// ); // Serve as JSON
+		
+		return $json;
 		
 	} else {
 		
@@ -229,129 +235,71 @@ function fetch_video(array $data) : int {
 }
 
 if (isset($_GET['id'])) {
-	
 	$fdata = read_data($_GET['id']);
-	
-	if (isset($_GET['stream'])) {
-		
-		if ($fdata !== null) {
-			
-			if (time()-filemtime(cache_path($_GET['id'])) > 3 * 3600) { // Check if file aleardy 3 hours
-				
-				$fres = write_data($fdata['id']);
-				
-				if ($fres !== null) {
-					$fdata = read_data($fres['hash']);
-
-					$reso = $_GET['stream'];
-							
-					if ($reso == 'thumbnail') {
+	$res = '360p';
+	if (isset($_GET['stream']))
+		$res = $_GET['stream'];
 						
-						header('Location:' . $fdata['thumbnail']);
-					
-					} else {
-
-						foreach($fdata['sources'] as $x) {
-							if ($x['resolution'] == $_GET['stream']) {
-								fetch_video(array(
-									'content-length' => $x['content-length'],
-									'src' => $x['src'],
-									'cookie' => $fdata['cookies']
-								));
-								break;
-							}
+	if (strlen($_GET['id']) == 33) {
+		if ($fdata !== null) {
+			if (time()-filemtime(cache_path($_GET['id'])) > 3 * 3600) { // Check if file aleardy 3 hours
+				$fdata_new = write_data($_GET['id']);
+				if ($fdata_new !== null) {
+					$content = json_decode($fdata_new,true);
+					foreach($content['sources'] as $x) {
+						if ($x['resolution'] == $res) {
+							fetch_video(array(
+								'content-length' => $x['content-length'],
+								'src' => $x['src'],
+								'cookie' => $content['cookies']
+							));
+							break;
 						}
-
 					}
 				} else {
 					die('Failed write data');
 				}
-
 			} else {
-				
 				if (is_array($fdata)) { // Check whenver data on file was array
-			
-					$reso = $_GET['stream'];
-						
-					if ($reso == 'thumbnail') {
-						
-						header('Location:' . $fdata['thumbnail']);
-					
-					} else {
-
-						foreach($fdata['sources'] as $x) {
-							if ($x['resolution'] == $_GET['stream']) {
-								fetch_video(array(
-									'content-length' => $x['content-length'],
-									'src' => $x['src'],
-									'cookie' => $fdata['cookies']
-								));
-								break;
-							}
+					foreach($fdata['sources'] as $x) {
+						if ($x['resolution'] == $res) {
+							fetch_video(array(
+								'content-length' => $x['content-length'],
+								'src' => $x['src'],
+								'cookie' => $fdata['cookies']
+							));
+							break;
 						}
-
 					}
-					
 				} else { // If not remove it and tell file was corrupt
-				
 					unlink(cache_path($_GET['id']));
 					die('File was corrupt, please re-generate file.');
-				
 				}
-				
 			}
-			
-		} else { // If not cache file was missing or expired
-			
-			die('Invalid file.');
-			
-		}
-		
-	} else {
-		$type = $_GET['type'];
-		
-		if (strlen($_GET['id']) == 33) { // Check if File ID have 33 Length (Google Drive ID)
-			
-			if ($fdata !== null) { // Check whenever data was created before
-				
-				header('Content-Type: application/json');
-				$ar_list = array();
-				
-				foreach($fdata['sources'] as $x) {
-					array_push($ar_list,$x['resolution']);
+		} else {
+			$fdata_new = write_data($_GET['id']);
+			if ($fdata_new !== null) {
+				$content = json_decode($fdata_new,true);
+				foreach($content['sources'] as $x) {
+					if ($x['resolution'] == $res) {
+						fetch_video(array(
+							'content-length' => $x['content-length'],
+							'src' => $x['src'],
+							'cookie' => $content['cookies']
+						));
+						break;
+					}
 				}
-
-				/*if (in_array('1080p', $ar_list)) {
-					$stream = '1080p';
-				} else if (in_array('720p', $ar_list)) {
-					$stream = '720p';
-				} else if (in_array('480p', $ar_list)) {
-					$stream = '480p';
-				} else {
-					$stream = '360p';
-				}*/
-
-				header('location: ?id='.hash('sha256', $_GET['id'], false).'&stream='.$type);
-				// echo json_encode(array(
-				// 	'hash' => hash('sha256', $_GET['id'], false),
-				// 	'sources' => $ar_list
-				// )); // Server as JSON
-				
 			} else {
-			
-				$fres = write_data($_GET['id']); // Write it to file
-				if ($fres !== null) {
-					header('Content-Type: application/json');
-					echo json_encode($fres);  // Server as JSON
-				} else {
-					die('Failed write data');
-				}
-			
+				die('Failed write data');
 			}
-			
 		}
-		
+	} else {
+		die('Invalid ID.');
 	}
+	
+} else {
+	die('Invalid ID.');
 }
 
 ?>
