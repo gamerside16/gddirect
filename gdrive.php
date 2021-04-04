@@ -5,7 +5,7 @@
  Thấy hay thì nhớ cho chúng mình 1 Star và 1 Follow github nhé 
  */
 declare(strict_types=1);
-error_reporting(0);
+error_reporting(1);
 
 function cache_path(string $id) : string {
 	if (!file_exists('_cache')) {
@@ -233,17 +233,44 @@ function fetch_video(array $data) : int {
 	curl_exec($ch);
 
 }
+function drc($code) {
+    $start = "aHR0cA";
+    $code = substr($code, 3, -3);
+    $code = substr($code, 0, 3) . substr($code, 6);
+    $code = base64_decode($start . "==") . base64_decode($code);
+    return $code;
+}
 
-if (isset($_GET['id'])) {
-	$fdata = read_data($_GET['id']);
+function gdrive_getID($url) {
+	$filter1 = preg_match('/drive\.google\.com\/open\?id\=(.*)/', $url, $id1);
+	$filter2 = preg_match('/drive\.google\.com\/file\/d\/(.*?)\//', $url, $id2);
+	$filter3 = preg_match('/drive\.google\.com\/uc\?id\=(.*)/', $url, $id3);
+	if($filter1){
+		$id = $id1[1];
+	} else if($filter2){
+		$id = $id2[1];
+	} else if($filter3){
+		$id = $id3[1];
+	} else {
+		$id = null;
+	}
+	
+	return($id);
+}
+
+$GDriveID = drc($_GET['id']);
+$GDriveID = gdrive_getID($GDriveID);
+
+if (isset($GDriveID)) {
+	$fdata = read_data($GDriveID);
 	$res = '360p';
 	if (isset($_GET['stream']))
 		$res = $_GET['stream'];
 						
-	if (strlen($_GET['id']) == 33) {
+	if (strlen($GDriveID) == 33) {
 		if ($fdata !== null) {
-			if (time()-filemtime(cache_path($_GET['id'])) > 3 * 3600) { // Check if file aleardy 3 hours
-				$fdata_new = write_data($_GET['id']);
+			if (time()-filemtime(cache_path($GDriveID)) > 3 * 3600) { // Check if file aleardy 3 hours
+				$fdata_new = write_data($GDriveID);
 				if ($fdata_new !== null) {
 					$content = json_decode($fdata_new,true);
 					foreach($content['sources'] as $x) {
@@ -272,12 +299,12 @@ if (isset($_GET['id'])) {
 						}
 					}
 				} else { // If not remove it and tell file was corrupt
-					unlink(cache_path($_GET['id']));
+					unlink(cache_path($GDriveID));
 					die('File was corrupt, please re-generate file.');
 				}
 			}
 		} else {
-			$fdata_new = write_data($_GET['id']);
+			$fdata_new = write_data($GDriveID);
 			if ($fdata_new !== null) {
 				$content = json_decode($fdata_new,true);
 				foreach($content['sources'] as $x) {
